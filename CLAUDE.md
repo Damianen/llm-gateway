@@ -49,7 +49,7 @@ inbound /v1/messages (Anthropic dialect) ──────┤→ canonical prov
 - [x] **Phase 0** — repo bootstrap: scaffold, module, CI (vet+test+build), first push, CI triggers.
 - [x] **Phase 1** — canonical types; YAML config + validation + example; SQLite store + embedded migrations; auth (hashed virtual keys); admin API (projects/keys/usage) + healthz; auth middleware; unit tests.
 - [x] **Phase 2** — outbound adapters non-streaming: anthropic + openai-compatible; fake upstreams; table-driven translation tests + golden wire payloads; tool-call round trips both directions.
-- [ ] **Phase 3** — inbound surfaces + routing: both dialect handlers (non-streaming), /v1/models, fallback chains with annotations; e2e matrix (2 dialects × 2 providers × plain/tool) asserting SQLite usage rows.
+- [x] **Phase 3** — inbound surfaces + routing: both dialect handlers (non-streaming), /v1/models, fallback chains with annotations; e2e matrix (2 dialects × 2 providers × plain/tool) asserting SQLite usage rows.
 - [ ] **Phase 4** — streaming: SSE plumbing, both-direction translation (text + tool-call deltas), terminal events, usage extraction from streams, mid-stream error handling; fixture-driven event-by-event tests.
 - [ ] **Phase 5** — exact-match cache (incl. replay-as-stream), RPM/TPM token buckets (fake clock tests), 429 + Retry-After in dialect, request log finalized, /admin/usage exact-totals test.
 - [ ] **Phase 6** — Prometheus metrics, startup summary log, scripts/smoke.sh, CI integration job.

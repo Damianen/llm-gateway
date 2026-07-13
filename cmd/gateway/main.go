@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/server"
 	"github.com/Damianen/llm-gateway/internal/store"
 )
@@ -57,10 +58,20 @@ func run() error {
 		logger.Warn("GATEWAY_ADMIN_TOKEN is not set: admin API is disabled")
 	}
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = 32
+	upstreamClient := &http.Client{Transport: transport} // timeouts are per-request via context
+
+	rt, err := router.New(cfg, upstreamClient)
+	if err != nil {
+		return err
+	}
+
 	srv := server.New(server.Options{
 		Config:     cfg,
 		Logger:     logger,
 		Store:      st,
+		Router:     rt,
 		AdminToken: adminToken,
 		Version:    version,
 	})

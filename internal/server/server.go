@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/store"
 )
 
@@ -16,6 +17,7 @@ type Options struct {
 	Config     *config.Config
 	Logger     *slog.Logger
 	Store      *store.Store
+	Router     *router.Router
 	AdminToken string
 	Clock      func() time.Time // nil means time.Now
 	Version    string
@@ -26,6 +28,7 @@ type Server struct {
 	cfg        *config.Config
 	logger     *slog.Logger
 	store      *store.Store
+	router     *router.Router
 	adminToken string
 	clock      func() time.Time
 	version    string
@@ -45,6 +48,7 @@ func New(opts Options) *Server {
 		cfg:        opts.Config,
 		logger:     logger,
 		store:      opts.Store,
+		router:     opts.Router,
 		adminToken: opts.AdminToken,
 		clock:      clock,
 		version:    opts.Version,
@@ -56,6 +60,10 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+
+	mux.Handle("POST /v1/chat/completions", s.requireKey(http.HandlerFunc(s.handleChatCompletions)))
+	mux.Handle("POST /v1/messages", s.requireKey(http.HandlerFunc(s.handleMessages)))
+	mux.Handle("GET /v1/models", s.requireKey(http.HandlerFunc(s.handleListModels)))
 
 	mux.HandleFunc("POST /admin/projects", s.requireAdmin(s.handleCreateProject))
 	mux.HandleFunc("GET /admin/projects", s.requireAdmin(s.handleListProjects))

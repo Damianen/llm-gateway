@@ -42,6 +42,30 @@ func (s *Store) LogRequest(ctx context.Context, r *RequestLog) error {
 	return nil
 }
 
+// LastRequest returns the most recently logged request row (highest id).
+// Used by tests and diagnostics.
+func (s *Store) LastRequest(ctx context.Context) (*RequestLog, error) {
+	var r RequestLog
+	var ts string
+	var cacheHit, fallbackUsed, stream int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT ts, project_id, key_id, endpoint, model, provider, upstream_model,
+		        input_tokens, output_tokens, cost_usd, latency_ms, status,
+		        cache_hit, fallback_used, stream
+		 FROM requests ORDER BY id DESC LIMIT 1`,
+	).Scan(&ts, &r.ProjectID, &r.KeyID, &r.Endpoint, &r.Model, &r.Provider, &r.UpstreamModel,
+		&r.InputTokens, &r.OutputTokens, &r.CostUSD, &r.LatencyMS, &r.Status,
+		&cacheHit, &fallbackUsed, &stream)
+	if err != nil {
+		return nil, fmt.Errorf("last request: %w", err)
+	}
+	r.Time = parseTime(ts)
+	r.CacheHit = cacheHit != 0
+	r.FallbackUsed = fallbackUsed != 0
+	r.Stream = stream != 0
+	return &r, nil
+}
+
 // UsageRow is one aggregated usage bucket.
 type UsageRow struct {
 	Group        string  `json:"group"`

@@ -290,16 +290,16 @@ func toCanonical(w *wireResponse) (*provider.Response, error) {
 		resp.Blocks = append(resp.Blocks, provider.TextBlock(*choice.Message.Content))
 	}
 	for _, tc := range choice.Message.ToolCalls {
-		resp.Blocks = append(resp.Blocks, provider.ToolUseBlock(tc.ID, tc.Function.Name, normalizeArgs(tc.Function.Arguments)))
+		resp.Blocks = append(resp.Blocks, provider.ToolUseBlock(tc.ID, tc.Function.Name, NormalizeArgs(tc.Function.Arguments)))
 	}
 	return resp, nil
 }
 
-// normalizeArgs turns a tool-call arguments string into a valid JSON value so
+// NormalizeArgs turns a tool-call arguments string into a valid JSON value so
 // it can be re-embedded in any wire format. Empty means no arguments; invalid
 // JSON (models occasionally emit it) is preserved under a "_raw" wrapper
 // rather than corrupting the downstream payload.
-func normalizeArgs(args string) json.RawMessage {
+func NormalizeArgs(args string) json.RawMessage {
 	trimmed := strings.TrimSpace(args)
 	if trimmed == "" {
 		return json.RawMessage("{}")
