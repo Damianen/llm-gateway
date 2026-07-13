@@ -9,9 +9,9 @@ type fakeClock struct {
 	t time.Time
 }
 
-func (f *fakeClock) now() time.Time            { return f.t }
-func (f *fakeClock) advance(d time.Duration)   { f.t = f.t.Add(d) }
-func newFakeClock() *fakeClock                 { return &fakeClock{t: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)} }
+func (f *fakeClock) now() time.Time          { return f.t }
+func (f *fakeClock) advance(d time.Duration) { f.t = f.t.Add(d) }
+func newFakeClock() *fakeClock               { return &fakeClock{t: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)} }
 
 func TestRPMBucket(t *testing.T) {
 	clock := newFakeClock()

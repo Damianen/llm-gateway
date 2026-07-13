@@ -109,8 +109,8 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	clock := &fakeClock{t: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)}
 	srv := New(Options{
 		Config: cfg, Logger: logger, Store: st, Router: rt,
-		Cache:   cache.New(st, cfg.Cache.TTL.Std(), clock.Now, logger),
-		Limiter: ratelimit.New(clock.Now),
+		Cache:      cache.New(st, cfg.Cache.TTL.Std(), clock.Now, logger),
+		Limiter:    ratelimit.New(clock.Now),
 		AdminToken: e2eAdminToken, Version: "e2e",
 		Clock: clock.Now,
 	})
