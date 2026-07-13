@@ -15,6 +15,7 @@ import (
 
 	"github.com/Damianen/llm-gateway/internal/cache"
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/metrics"
 	"github.com/Damianen/llm-gateway/internal/ratelimit"
 	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/server"
@@ -71,6 +72,7 @@ func run() error {
 
 	respCache := cache.New(st, cfg.Cache.TTL.Std(), nil, logger)
 	limiter := ratelimit.New(nil)
+	m := metrics.New()
 
 	srv := server.New(server.Options{
 		Config:     cfg,
@@ -79,9 +81,44 @@ func run() error {
 		Router:     rt,
 		Cache:      respCache,
 		Limiter:    limiter,
+		Metrics:    m,
 		AdminToken: adminToken,
 		Version:    version,
 	})
+
+	// Startup summary: everything an operator needs, no secrets (key env var
+	// names are logged, never their values).
+	enabled := 0
+	for i := range cfg.Models {
+		mc := &cfg.Models[i]
+		if !mc.IsEnabled() {
+			logger.Info("model disabled", "name", mc.Name)
+			continue
+		}
+		enabled++
+		logger.Info("model registered",
+			"name", mc.Name,
+			"provider", mc.Provider,
+			"upstream_model", mc.UpstreamModel,
+			"base_url", mc.BaseURL,
+			"api_key_env", mc.APIKeyEnv,
+			"aliases", mc.Aliases,
+			"fallback", mc.Fallback,
+			"input_usd_per_mtok", mc.Pricing.InputPerMTok,
+			"output_usd_per_mtok", mc.Pricing.OutputPerMTok,
+		)
+	}
+	logger.Info("llm-gateway starting",
+		"version", version,
+		"listen", cfg.Server.Listen,
+		"db", cfg.Database.Path,
+		"models_enabled", enabled,
+		"cache_ttl", cfg.Cache.TTL.Std().String(),
+		"default_rpm", cfg.RateLimits.DefaultRPM,
+		"default_tpm", cfg.RateLimits.DefaultTPM,
+		"log_bodies", cfg.Server.LogBodies,
+		"admin_api", adminToken != "",
+	)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Server.Listen,

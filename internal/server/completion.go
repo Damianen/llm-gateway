@@ -70,6 +70,10 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, d dial
 				retry = 1
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(retry))
+			if s.metrics != nil {
+				s.metrics.ObserveRequest(key.ProjectName, entry.Name, entry.ProviderType,
+					http.StatusTooManyRequests, time.Since(started).Seconds(), 0, 0, 0, false, false)
+			}
 			d.writeError(w, http.StatusTooManyRequests, "rate_limited",
 				fmt.Sprintf("rate limit exceeded for this key; retry after %ds", retry))
 			return
@@ -267,6 +271,12 @@ func (s *Server) record(r *http.Request, rec requestRecord) {
 	}
 	if err := s.store.LogRequest(context.WithoutCancel(r.Context()), row); err != nil {
 		s.logger.Error("failed to record request", "request_id", requestIDFromContext(r.Context()), "err", err)
+	}
+	if s.metrics != nil {
+		s.metrics.ObserveRequest(rec.key.ProjectName, rec.model, rec.served.ProviderType,
+			rec.status, float64(rec.latencyMS)/1000,
+			rec.usage.InputTokens, rec.usage.OutputTokens, rec.cost,
+			rec.cacheHit, rec.fallbackUsed)
 	}
 	s.logger.Info("request",
 		"request_id", requestIDFromContext(r.Context()),

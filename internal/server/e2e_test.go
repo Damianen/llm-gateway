@@ -18,6 +18,7 @@ import (
 	"github.com/Damianen/llm-gateway/internal/auth"
 	"github.com/Damianen/llm-gateway/internal/cache"
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/metrics"
 	"github.com/Damianen/llm-gateway/internal/ratelimit"
 	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/store"
@@ -111,6 +112,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		Config: cfg, Logger: logger, Store: st, Router: rt,
 		Cache:      cache.New(st, cfg.Cache.TTL.Std(), clock.Now, logger),
 		Limiter:    ratelimit.New(clock.Now),
+		Metrics:    metrics.New(),
 		AdminToken: e2eAdminToken, Version: "e2e",
 		Clock: clock.Now,
 	})

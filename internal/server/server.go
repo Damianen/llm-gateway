@@ -9,6 +9,7 @@ import (
 
 	"github.com/Damianen/llm-gateway/internal/cache"
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/metrics"
 	"github.com/Damianen/llm-gateway/internal/ratelimit"
 	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/store"
@@ -22,6 +23,7 @@ type Options struct {
 	Router     *router.Router
 	Cache      *cache.Cache       // nil disables response caching
 	Limiter    *ratelimit.Limiter // nil disables rate limiting
+	Metrics    *metrics.Metrics   // nil disables Prometheus instrumentation
 	AdminToken string
 	Clock      func() time.Time // nil means time.Now
 	Version    string
@@ -35,6 +37,7 @@ type Server struct {
 	router     *router.Router
 	cache      *cache.Cache
 	limiter    *ratelimit.Limiter
+	metrics    *metrics.Metrics
 	adminToken string
 	clock      func() time.Time
 	version    string
@@ -57,6 +60,7 @@ func New(opts Options) *Server {
 		router:     opts.Router,
 		cache:      opts.Cache,
 		limiter:    opts.Limiter,
+		metrics:    opts.Metrics,
 		adminToken: opts.AdminToken,
 		clock:      clock,
 		version:    opts.Version,
@@ -68,6 +72,11 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	if s.metrics != nil {
+		// Unauthenticated by design: bind the gateway to an internal
+		// interface or firewall the scrape port (see README security notes).
+		mux.Handle("GET /metrics", s.metrics.Handler())
+	}
 
 	mux.Handle("POST /v1/chat/completions", s.requireKey(http.HandlerFunc(s.handleChatCompletions)))
 	mux.Handle("POST /v1/messages", s.requireKey(http.HandlerFunc(s.handleMessages)))
