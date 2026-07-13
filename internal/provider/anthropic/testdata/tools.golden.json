@@ -1,0 +1,35 @@
+{
+  "max_tokens": 512,
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "Weather in Amsterdam?",
+          "type": "text"
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "model": "claude-sonnet-4-6",
+  "tool_choice": {
+    "type": "any"
+  },
+  "tools": [
+    {
+      "description": "Get current weather",
+      "input_schema": {
+        "properties": {
+          "location": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "location"
+        ],
+        "type": "object"
+      },
+      "name": "get_weather"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -36,4 +37,17 @@ func AsUpstreamError(err error) (*UpstreamError, bool) {
 		return ue, true
 	}
 	return nil, false
+}
+
+// NewTransportError wraps a failure that never produced an HTTP response
+// (connection refused, timeout, canceled). Always retryable.
+func NewTransportError(providerType string, err error) *UpstreamError {
+	msg := "request failed"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		msg = "upstream timeout"
+	case errors.Is(err, context.Canceled):
+		msg = "request canceled"
+	}
+	return &UpstreamError{Provider: providerType, StatusCode: 0, Message: msg, Err: err}
 }

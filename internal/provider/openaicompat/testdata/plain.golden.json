@@ -1,0 +1,17 @@
+{
+  "messages": [
+    {
+      "content": "You are terse.",
+      "role": "system"
+    },
+    {
+      "content": "Hello!",
+      "role": "user"
+    }
+  ],
+  "model": "gpt-fast",
+  "stop": [
+    "END"
+  ],
+  "temperature": 0.2
+}

@@ -1,0 +1,52 @@
+{
+  "max_tokens": 512,
+  "messages": [
+    {
+      "content": "Weather in Amsterdam?",
+      "role": "user"
+    },
+    {
+      "content": "Let me check.",
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"location\":\"Amsterdam\"}",
+            "name": "get_weather"
+          },
+          "id": "toolu_01",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "content": "[tool error] 17°C, cloudy",
+      "role": "tool",
+      "tool_call_id": "toolu_01"
+    },
+    {
+      "content": "Summarize that.",
+      "role": "user"
+    }
+  ],
+  "model": "gpt-fast",
+  "tools": [
+    {
+      "function": {
+        "name": "get_weather",
+        "parameters": {
+          "properties": {
+            "location": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "location"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    }
+  ]
+}
