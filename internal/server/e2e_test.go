@@ -82,9 +82,12 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	// A fixed clock keeps stream goldens (created timestamps) deterministic.
+	fixedNow := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
 	srv := New(Options{
 		Config: cfg, Logger: logger, Store: st, Router: rt,
 		AdminToken: e2eAdminToken, Version: "e2e",
+		Clock: func() time.Time { return fixedNow },
 	})
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)

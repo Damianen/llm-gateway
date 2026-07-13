@@ -1,0 +1,6 @@
+event=- data={"choices":[{"delta":{"content":"","role":"assistant"},"finish_reason":null,"index":0}],"created":1783944000,"id":"msg_fake_001","model":"sonnet","object":"chat.completion.chunk"}
+event=- data={"choices":[{"delta":{"content":"Hello from "},"finish_reason":null,"index":0}],"created":1783944000,"id":"msg_fake_001","model":"sonnet","object":"chat.completion.chunk"}
+event=- data={"choices":[{"delta":{"content":"fake anthropic."},"finish_reason":null,"index":0}],"created":1783944000,"id":"msg_fake_001","model":"sonnet","object":"chat.completion.chunk"}
+event=- data={"choices":[{"delta":{},"finish_reason":"stop","index":0}],"created":1783944000,"id":"msg_fake_001","model":"sonnet","object":"chat.completion.chunk"}
+event=- data={"choices":[],"created":1783944000,"id":"msg_fake_001","model":"sonnet","object":"chat.completion.chunk","usage":{"completion_tokens":7,"prompt_tokens":25,"total_tokens":32}}
+event=- data=[DONE]

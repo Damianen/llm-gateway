@@ -89,10 +89,74 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, d dial
 	d.writeResponse(w, opts.requestedModel, resp, s.clock())
 }
 
-// handleStreamingCompletion is implemented in Phase 4.
+// handleStreamingCompletion streams a completion to the client, translating
+// the upstream's events into the inbound dialect. Fallback applies only until
+// a stream is established; the whole stream's lifetime is bounded by the
+// client connection (not request_timeout). Usage is extracted from stream
+// events so streamed requests are costed identically to non-streamed ones.
 func (s *Server) handleStreamingCompletion(w http.ResponseWriter, r *http.Request, d dialect,
 	req *provider.Request, opts *inboundOpts, entry *router.Entry, key *store.APIKey, started time.Time) {
-	d.writeError(w, http.StatusNotImplemented, "streaming_unavailable", "streaming is not implemented yet")
+
+	sr, err := s.router.Stream(r.Context(), entry, req)
+	if err != nil {
+		// Nothing has been written yet: return a regular JSON error.
+		status, code, msg := mapUpstreamError(err)
+		s.record(r, requestRecord{
+			dialect: d, key: key, model: entry.Name, served: entry,
+			latencyMS: time.Since(started).Milliseconds(), status: status, stream: true,
+		})
+		s.logger.Warn("upstream stream failed to start",
+			"request_id", requestIDFromContext(r.Context()), "model", entry.Name, "err", err)
+		d.writeError(w, status, code, msg)
+		return
+	}
+	defer sr.Stream.Close()
+
+	sw := d.newStreamWriter(w, opts.requestedModel, opts, s.clock())
+	var usage provider.Usage
+	status := http.StatusOK
+	for {
+		ev, recvErr := sr.Stream.Recv()
+		if recvErr != nil {
+			if errors.Is(recvErr, io.EOF) {
+				break
+			}
+			if r.Context().Err() != nil {
+				// The client went away; the upstream was canceled through
+				// context propagation. 499 = client closed request.
+				status = 499
+				break
+			}
+			estatus, code, msg := mapUpstreamError(recvErr)
+			sw.terminalError(estatus, code, msg)
+			s.logger.Warn("upstream stream failed mid-flight",
+				"request_id", requestIDFromContext(r.Context()), "model", sr.Entry.Name, "err", recvErr)
+			status = http.StatusBadGateway
+			break
+		}
+		switch ev.Type {
+		case provider.EventStart:
+			if ev.Usage.InputTokens > 0 {
+				usage.InputTokens = ev.Usage.InputTokens
+			}
+		case provider.EventFinish:
+			if ev.Usage.InputTokens > 0 {
+				usage.InputTokens = ev.Usage.InputTokens
+			}
+			usage.OutputTokens = ev.Usage.OutputTokens
+		}
+		if werr := sw.event(ev); werr != nil {
+			status = 499 // write failed: client disconnected mid-stream
+			break
+		}
+	}
+
+	cost := sr.Entry.Pricing.Cost(usage.InputTokens, usage.OutputTokens)
+	s.record(r, requestRecord{
+		dialect: d, key: key, model: entry.Name, served: sr.Entry,
+		usage: usage, cost: cost, latencyMS: time.Since(started).Milliseconds(),
+		status: status, fallbackUsed: sr.FallbackUsed, stream: true,
+	})
 }
 
 // requestRecord carries everything the request log, slog line, and metrics

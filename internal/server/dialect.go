@@ -23,6 +23,10 @@ type dialect interface {
 	writeResponse(w http.ResponseWriter, model string, resp *provider.Response, now time.Time)
 
 	writeError(w http.ResponseWriter, status int, code, message string)
+
+	// newStreamWriter starts an SSE response (writes headers immediately)
+	// that translates canonical stream events into this dialect.
+	newStreamWriter(w http.ResponseWriter, model string, opts *inboundOpts, now time.Time) streamWriter
 }
 
 // inboundOpts carries dialect-specific request details that are not part of

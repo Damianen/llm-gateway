@@ -125,6 +125,42 @@ func (r *Router) Complete(ctx context.Context, e *Entry, req *provider.Request) 
 	return nil, lastErr
 }
 
+// StreamResult is the outcome of a routed stream start.
+type StreamResult struct {
+	Stream       provider.Stream
+	Entry        *Entry
+	FallbackUsed bool
+}
+
+// Stream tries the entry, then its fallback chain. Fallback applies only
+// before a stream is established (connect errors, upstream 429/5xx); once
+// events are flowing, mid-stream failures surface to the caller.
+func (r *Router) Stream(ctx context.Context, e *Entry, req *provider.Request) (*StreamResult, error) {
+	var lastErr error
+	for _, cand := range e.chain() {
+		if !cand.Enabled {
+			continue
+		}
+		creq := *req
+		creq.Model = cand.UpstreamModel
+		st, err := cand.Provider.Stream(ctx, &creq)
+		if err == nil {
+			return &StreamResult{Stream: st, Entry: cand, FallbackUsed: cand != e}, nil
+		}
+		lastErr = err
+		if ue, ok := provider.AsUpstreamError(err); !ok || !ue.Retryable() {
+			return nil, err
+		}
+		if ctx.Err() != nil {
+			return nil, err
+		}
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("model %q: no enabled entry in fallback chain", e.Name)
+	}
+	return nil, lastErr
+}
+
 func (e *Entry) chain() []*Entry {
 	return append([]*Entry{e}, e.Fallback...)
 }

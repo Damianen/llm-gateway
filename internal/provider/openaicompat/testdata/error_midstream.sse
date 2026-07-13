@@ -1,0 +1,3 @@
+data: {"id":"chatcmpl-str-err","object":"chat.completion.chunk","created":1700000000,"model":"gpt-fast","choices":[{"index":0,"delta":{"role":"assistant","content":"Hel"},"finish_reason":null}]}
+
+data: {"error":{"message":"The server had an error while processing your request","type":"server_error"}}
