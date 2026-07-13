@@ -5,9 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/Damianen/llm-gateway/internal/cache"
 	"github.com/Damianen/llm-gateway/internal/provider"
 	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/store"
@@ -54,6 +58,51 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, d dial
 		return
 	}
 
+	// Rate limiting: RPM consumes a token on admission; TPM requires a
+	// positive balance and is debited with provider-reported usage after the
+	// response. Rate-limited requests are counted in metrics but not written
+	// to the request log (protects the store from hot-looping clients).
+	rpm, tpm := s.keyLimits(key)
+	if s.limiter != nil {
+		if dec := s.limiter.Allow(key.ID, rpm, tpm); !dec.OK {
+			retry := int(math.Ceil(dec.RetryAfter.Seconds()))
+			if retry < 1 {
+				retry = 1
+			}
+			w.Header().Set("Retry-After", strconv.Itoa(retry))
+			d.writeError(w, http.StatusTooManyRequests, "rate_limited",
+				fmt.Sprintf("rate limit exceeded for this key; retry after %ds", retry))
+			return
+		}
+	}
+
+	// Exact-match cache: reads serve both non-streaming and streaming
+	// requests (the latter as a replayed stream); only non-streaming 200s
+	// write entries. Cache hits cost $0 and record zero tokens — the token
+	// columns track upstream consumption.
+	cacheable := s.cache != nil &&
+		(key.CacheDefault || strings.EqualFold(r.Header.Get("X-Gateway-Cache"), "true"))
+	var cacheKey string
+	if cacheable {
+		cacheKey = cache.Key(entry.Name, req)
+		if resp, ok := s.cache.Get(r.Context(), cacheKey); ok {
+			s.record(r, requestRecord{
+				dialect: d, key: key, model: entry.Name, served: entry,
+				latencyMS: time.Since(started).Milliseconds(), status: http.StatusOK,
+				cacheHit: true, stream: req.Stream,
+			})
+			if req.Stream {
+				sw := d.newStreamWriter(w, opts.requestedModel, opts, s.clock())
+				if err := replayAsStream(resp, sw); err != nil {
+					s.logger.Debug("cached stream replay interrupted", "err", err)
+				}
+				return
+			}
+			d.writeResponse(w, opts.requestedModel, resp, s.clock())
+			return
+		}
+	}
+
 	if req.Stream {
 		s.handleStreamingCompletion(w, r, d, req, opts, entry, key, started)
 		return
@@ -83,10 +132,29 @@ func (s *Server) handleCompletion(w http.ResponseWriter, r *http.Request, d dial
 		usage: resp.Usage, cost: cost, latencyMS: latencyMS, status: http.StatusOK,
 		fallbackUsed: result.FallbackUsed,
 	})
+	if cacheable {
+		s.cache.Set(context.WithoutCancel(r.Context()), cacheKey, entry.Name, resp)
+	}
+	if s.limiter != nil {
+		s.limiter.DebitTokens(key.ID, tpm, resp.Usage.InputTokens+resp.Usage.OutputTokens)
+	}
 	if s.cfg.Server.LogBodies {
 		s.logResponseBody(r, d, resp)
 	}
 	d.writeResponse(w, opts.requestedModel, resp, s.clock())
+}
+
+// keyLimits resolves a key's effective limits: per-key overrides fall back
+// to the config defaults; 0 means unlimited.
+func (s *Server) keyLimits(key *store.APIKey) (rpm, tpm int) {
+	rpm, tpm = key.RPM, key.TPM
+	if rpm == 0 {
+		rpm = s.cfg.RateLimits.DefaultRPM
+	}
+	if tpm == 0 {
+		tpm = s.cfg.RateLimits.DefaultTPM
+	}
+	return rpm, tpm
 }
 
 // handleStreamingCompletion streams a completion to the client, translating
@@ -157,6 +225,10 @@ func (s *Server) handleStreamingCompletion(w http.ResponseWriter, r *http.Reques
 		usage: usage, cost: cost, latencyMS: time.Since(started).Milliseconds(),
 		status: status, fallbackUsed: sr.FallbackUsed, stream: true,
 	})
+	if s.limiter != nil {
+		_, tpm := s.keyLimits(key)
+		s.limiter.DebitTokens(key.ID, tpm, usage.InputTokens+usage.OutputTokens)
+	}
 }
 
 // requestRecord carries everything the request log, slog line, and metrics

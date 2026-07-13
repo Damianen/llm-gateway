@@ -13,7 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Damianen/llm-gateway/internal/cache"
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/ratelimit"
 	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/server"
 	"github.com/Damianen/llm-gateway/internal/store"
@@ -67,11 +69,16 @@ func run() error {
 		return err
 	}
 
+	respCache := cache.New(st, cfg.Cache.TTL.Std(), nil, logger)
+	limiter := ratelimit.New(nil)
+
 	srv := server.New(server.Options{
 		Config:     cfg,
 		Logger:     logger,
 		Store:      st,
 		Router:     rt,
+		Cache:      respCache,
+		Limiter:    limiter,
 		AdminToken: adminToken,
 		Version:    version,
 	})
@@ -86,6 +93,8 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	go respCache.RunSweeper(ctx, time.Minute)
 
 	serveErr := make(chan error, 1)
 	go func() {

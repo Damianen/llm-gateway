@@ -11,18 +11,39 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Damianen/llm-gateway/internal/auth"
+	"github.com/Damianen/llm-gateway/internal/cache"
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/ratelimit"
 	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/store"
 	"github.com/Damianen/llm-gateway/internal/upstreamfake"
 )
 
+// fakeClock is a mutable test clock shared by the server, cache, and limiter.
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (f *fakeClock) Now() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.t
+}
+
+func (f *fakeClock) Advance(d time.Duration) {
+	f.mu.Lock()
+	f.t = f.t.Add(d)
+	f.mu.Unlock()
+}
+
 // e2eEnv is a full gateway stack over fake upstreams: real HTTP server, real
-// SQLite store, real router.
+// SQLite store, real router, cache, and limiter.
 type e2eEnv struct {
 	srv    *Server
 	store  *store.Store
@@ -30,6 +51,7 @@ type e2eEnv struct {
 	logBuf *bytes.Buffer
 	ant    *upstreamfake.Fake
 	oai    *upstreamfake.Fake
+	clock  *fakeClock
 	key    string // plaintext virtual key
 	keyID  int64
 }
@@ -82,12 +104,15 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	// A fixed clock keeps stream goldens (created timestamps) deterministic.
-	fixedNow := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	// A fake clock keeps stream goldens (created timestamps) deterministic
+	// and lets cache-TTL tests advance time.
+	clock := &fakeClock{t: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)}
 	srv := New(Options{
 		Config: cfg, Logger: logger, Store: st, Router: rt,
+		Cache:   cache.New(st, cfg.Cache.TTL.Std(), clock.Now, logger),
+		Limiter: ratelimit.New(clock.Now),
 		AdminToken: e2eAdminToken, Version: "e2e",
-		Clock: func() time.Time { return fixedNow },
+		Clock: clock.Now,
 	})
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -105,7 +130,25 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &e2eEnv{srv: srv, store: st, http: ts, logBuf: &logBuf, ant: ant, oai: oai, key: plaintext, keyID: k.ID}
+	return &e2eEnv{srv: srv, store: st, http: ts, logBuf: &logBuf, ant: ant, oai: oai, clock: clock, key: plaintext, keyID: k.ID}
+}
+
+// newKey creates an additional virtual key with specific limits/cache flag.
+func (e *e2eEnv) newKey(t *testing.T, rpm, tpm int, cacheDefault bool) string {
+	t.Helper()
+	ctx := context.Background()
+	p, err := e.store.GetProjectByName(ctx, "e2e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plaintext, hash, err := auth.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.store.InsertKey(ctx, hash, "extra", p.ID, rpm, tpm, cacheDefault); err != nil {
+		t.Fatal(err)
+	}
+	return plaintext
 }
 
 // post sends an authenticated JSON request and returns status, parsed body,

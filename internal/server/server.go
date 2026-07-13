@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Damianen/llm-gateway/internal/cache"
 	"github.com/Damianen/llm-gateway/internal/config"
+	"github.com/Damianen/llm-gateway/internal/ratelimit"
 	"github.com/Damianen/llm-gateway/internal/router"
 	"github.com/Damianen/llm-gateway/internal/store"
 )
@@ -18,6 +20,8 @@ type Options struct {
 	Logger     *slog.Logger
 	Store      *store.Store
 	Router     *router.Router
+	Cache      *cache.Cache       // nil disables response caching
+	Limiter    *ratelimit.Limiter // nil disables rate limiting
 	AdminToken string
 	Clock      func() time.Time // nil means time.Now
 	Version    string
@@ -29,6 +33,8 @@ type Server struct {
 	logger     *slog.Logger
 	store      *store.Store
 	router     *router.Router
+	cache      *cache.Cache
+	limiter    *ratelimit.Limiter
 	adminToken string
 	clock      func() time.Time
 	version    string
@@ -49,6 +55,8 @@ func New(opts Options) *Server {
 		logger:     logger,
 		store:      opts.Store,
 		router:     opts.Router,
+		cache:      opts.Cache,
+		limiter:    opts.Limiter,
 		adminToken: opts.AdminToken,
 		clock:      clock,
 		version:    opts.Version,
