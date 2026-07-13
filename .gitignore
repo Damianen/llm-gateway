@@ -1,0 +1,21 @@
+# Binaries
+/llm-gateway
+/gateway
+/fakeupstream
+/bin/
+/dist/
+
+# Data
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Local config & secrets
+/config.yaml
+.env
+
+# Tooling
+*.out
+*.test
+coverage.*
