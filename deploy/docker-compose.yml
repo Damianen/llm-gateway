@@ -1,0 +1,29 @@
+# llm-gateway via docker compose.
+#
+#   cp ../config.example.yaml ./config.yaml     # edit: set database.path: /data/gateway.db
+#   echo "GATEWAY_ADMIN_TOKEN=$(openssl rand -hex 24)" > .env
+#   echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
+#   docker compose up -d
+services:
+  gateway:
+    image: ghcr.io/damianen/llm-gateway:latest
+    # To build locally instead of pulling:
+    #   build:
+    #     context: ..
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/etc/llm-gateway/config.yaml:ro
+      - gateway-data:/data
+    environment:
+      GATEWAY_ADMIN_TOKEN: ${GATEWAY_ADMIN_TOKEN:?set GATEWAY_ADMIN_TOKEN in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "/llm-gateway", "-version"]
+      interval: 30s
+      timeout: 3s
+
+volumes:
+  gateway-data:

@@ -1,0 +1,58 @@
+# systemd unit for llm-gateway (e.g. in a Proxmox LXC).
+#
+# Install:
+#   cp llm-gateway /usr/local/bin/
+#   mkdir -p /etc/llm-gateway
+#   cp config.example.yaml /etc/llm-gateway/config.yaml   # edit; set
+#       database.path: /var/lib/llm-gateway/gateway.db
+#   cat > /etc/llm-gateway/env <<'EOF'
+#   GATEWAY_ADMIN_TOKEN=<random secret>
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   OPENROUTER_API_KEY=sk-or-...
+#   EOF
+#   chmod 600 /etc/llm-gateway/env
+#   cp llm-gateway.service /etc/systemd/system/
+#   systemctl enable --now llm-gateway
+
+[Unit]
+Description=llm-gateway - self-hosted LLM gateway
+Documentation=https://github.com/Damianen/llm-gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/llm-gateway -config /etc/llm-gateway/config.yaml
+EnvironmentFile=/etc/llm-gateway/env
+Restart=on-failure
+RestartSec=2
+# Graceful shutdown: SIGTERM, then the gateway's shutdown_grace applies.
+TimeoutStopSec=30
+
+# Unprivileged dynamic user; /var/lib/llm-gateway is created and persisted.
+DynamicUser=yes
+StateDirectory=llm-gateway
+
+# Hardening.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

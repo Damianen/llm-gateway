@@ -53,7 +53,7 @@ inbound /v1/messages (Anthropic dialect) ──────┤→ canonical prov
 - [x] **Phase 4** — streaming: SSE plumbing, both-direction translation (text + tool-call deltas), terminal events, usage extraction from streams, mid-stream error handling; fixture-driven event-by-event tests. (Streaming tool calls fully working — no flag/skip needed.)
 - [ ] **Phase 5** — exact-match cache (incl. replay-as-stream), RPM/TPM token buckets (fake clock tests), 429 + Retry-After in dialect, request log finalized, /admin/usage exact-totals test.
 - [x] **Phase 6** — Prometheus metrics, startup summary log, scripts/smoke.sh, CI integration job.
-- [ ] **Phase 7** — Dockerfile (distroless, non-root), docker-compose, systemd unit, full README (architecture diagram, quickstart, config/metrics reference, security, roadmap), CLAUDE.md finalized.
+- [x] **Phase 7** — Dockerfile (distroless, non-root), docker-compose, systemd unit, full README (architecture diagram, quickstart, config/metrics reference, security, roadmap), CLAUDE.md finalized.
 - [ ] **Phase 8** — release workflow (multi-arch → GHCR), full green suite, optional live smoke, tag v0.1.0, confirm release, final report.
 
 ## Commands
