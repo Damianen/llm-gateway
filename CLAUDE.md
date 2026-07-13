@@ -46,8 +46,8 @@ inbound /v1/messages (Anthropic dialect) ──────┤→ canonical prov
 
 ## Build plan (tick per phase; each phase = vet clean, tests green with -race, conventional commit, push)
 
-- [ ] **Phase 0** — repo bootstrap: scaffold, module, CI (vet+test+build), first push, CI triggers.
-- [ ] **Phase 1** — canonical types; YAML config + validation + example; SQLite store + embedded migrations; auth (hashed virtual keys); admin API (projects/keys/usage) + healthz; auth middleware; unit tests.
+- [x] **Phase 0** — repo bootstrap: scaffold, module, CI (vet+test+build), first push, CI triggers.
+- [x] **Phase 1** — canonical types; YAML config + validation + example; SQLite store + embedded migrations; auth (hashed virtual keys); admin API (projects/keys/usage) + healthz; auth middleware; unit tests.
 - [ ] **Phase 2** — outbound adapters non-streaming: anthropic + openai-compatible; fake upstreams; table-driven translation tests + golden wire payloads; tool-call round trips both directions.
 - [ ] **Phase 3** — inbound surfaces + routing: both dialect handlers (non-streaming), /v1/models, fallback chains with annotations; e2e matrix (2 dialects × 2 providers × plain/tool) asserting SQLite usage rows.
 - [ ] **Phase 4** — streaming: SSE plumbing, both-direction translation (text + tool-call deltas), terminal events, usage extraction from streams, mid-stream error handling; fixture-driven event-by-event tests.

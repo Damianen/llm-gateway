@@ -1,0 +1,63 @@
+# llm-gateway example configuration.
+# Copy to config.yaml and adjust. Upstream API keys are NEVER placed in this
+# file: each model names an environment variable that holds its key.
+
+server:
+  listen: ":8080"
+  request_timeout: 120s     # whole non-streaming request, fallbacks included
+  upstream_timeout: 60s     # one upstream attempt (time-to-first-byte for streams)
+  shutdown_grace: 10s
+  log_level: info           # debug|info|warn|error
+  log_bodies: false         # when true, request/response bodies are logged
+  default_max_tokens: 1024  # applied when a client omits max_tokens
+
+database:
+  path: data/gateway.db     # single SQLite file (WAL mode)
+
+cache:
+  ttl: 5m                   # exact-match response cache TTL
+
+rate_limits:                # per-key defaults; override per key via admin API.
+  default_rpm: 60           # 0 = unlimited
+  default_tpm: 100000       # 0 = unlimited
+
+# Model registry. Clients request the gateway-facing `name` (or an alias);
+# the gateway forwards to `upstream_model` at `base_url` using `provider`
+# wire format ("anthropic" or "openai"-compatible).
+#
+# Base URL conventions:
+#   provider: anthropic -> base_url is the host root (gateway appends /v1/messages)
+#   provider: openai    -> base_url includes /v1 (gateway appends /chat/completions)
+models:
+  - name: sonnet
+    provider: anthropic
+    upstream_model: claude-sonnet-4-6
+    base_url: https://api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY
+    pricing: { input_usd_per_mtok: 3.00, output_usd_per_mtok: 15.00 }
+    aliases: [claude-sonnet]
+    # On 429/5xx/timeout, retry the request on these entries, in order.
+    fallback: [sonnet-openrouter]
+
+  - name: sonnet-openrouter
+    provider: openai
+    upstream_model: anthropic/claude-sonnet-4.6
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    pricing: { input_usd_per_mtok: 3.00, output_usd_per_mtok: 15.00 }
+
+  - name: fast
+    provider: anthropic
+    upstream_model: claude-haiku-4-5-20251001
+    base_url: https://api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY
+    pricing: { input_usd_per_mtok: 1.00, output_usd_per_mtok: 5.00 }
+
+  # Local model via any OpenAI-compatible server (Ollama, llama.cpp,
+  # LM Studio). No key needed: omit api_key_env. Enable when the server runs.
+  - name: local-hermes
+    provider: openai
+    upstream_model: hermes3:8b
+    base_url: http://localhost:11434/v1
+    pricing: { input_usd_per_mtok: 0, output_usd_per_mtok: 0 }
+    enabled: false
